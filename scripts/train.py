@@ -117,7 +117,8 @@ def train_model(
                 "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "epoch": epoch,
-                "accuracy": best_val_acc
+                "accuracy": best_val_acc,
+                "history": history    # 保存训练历史
             }, best_model_path)
             print(f"✅ 保存最佳模型，验证准确率: {best_val_acc:.2f}%")
 
