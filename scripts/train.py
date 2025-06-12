@@ -26,34 +26,42 @@ def train_model(
     """
     训练甲状腺结节分类模型，包含增强的训练策略和早停机制
     """
+    # 创建模型保存路径
     os.makedirs(save_path, exist_ok=True)
 
     # 处理类别不平衡（计算类别权重）
     if hasattr(train_loader.dataset, 'class_distribution'):
+        # 获取训练集的类别分布
         class_counts = np.array([train_loader.dataset.class_distribution.get(0, 1),
                                  train_loader.dataset.class_distribution.get(1, 1)])
+        # 计算类别权重（使用类别频率的倒数）
         class_weights = 1.0 / class_counts
         class_weights = class_weights / np.sum(class_weights) * 2  # 归一化
         weight_tensor = torch.FloatTensor(class_weights).to(device)
+        # 使用带权重的交叉熵损失函数
         criterion = nn.CrossEntropyLoss(weight=weight_tensor)
         print(f"使用类别权重: {class_weights}")
     else:
+        # 若没有类别分布信息，则使用普通的交叉熵损失函数
         criterion = nn.CrossEntropyLoss()
 
     # 优化器与学习率调度
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    # 学习率调度器：根据验证集性能动态调整学习率
+    # 当验证集的性能在一段时间内没有提升时，它会降低学习率，以帮助模型跳出局部最优解，继续寻找更优的参数。
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='max', factor=0.5, patience=2,
         verbose=True, min_lr=1e-6
     )
 
+    # 将模型移至指定设备（GPU或CPU）
     model = model.to(device)
     print(f"使用设备: {device}, 模型: {model_name}")
 
     best_val_acc = 0.0
     best_model_path = os.path.join(save_path, f"best_{model_name}.pth")
     early_stopping_counter = 0
-    early_stopping_limit = 10  # 早停阈值
+    early_stopping_limit = 10    # 早停阈值
 
     history = {"train_loss": [], "train_acc": [], "val_loss": [], "val_acc": []}
 
@@ -67,14 +75,21 @@ def train_model(
         train_correct = 0
         train_total = 0
 
+        # 使用tqdm显示训练进度条
         with tqdm(train_loader, desc="训练中") as pbar:
             for inputs, labels in pbar:
+                # 将输入和标签移至指定设备
                 inputs, labels = inputs.to(device), labels.to(device)
 
+                # 梯度清零
                 optimizer.zero_grad()
+                # 前向传播
                 outputs = model(inputs)
+                # 计算损失
                 loss = criterion(outputs, labels)
+                # 反向传播
                 loss.backward()
+                # 更新参数
                 optimizer.step()
 
                 train_loss += loss.item() * inputs.size(0)
@@ -96,24 +111,36 @@ def train_model(
         val_correct = 0
         val_total = 0
 
+        # 使用tqdm显示验证进度条
         with torch.no_grad(), tqdm(val_loader, desc="验证中") as pbar:
             for inputs, labels in pbar:
+                # 将输入和标签移至指定设备
                 inputs, labels = inputs.to(device), labels.to(device)
 
+                # 前向传播
                 outputs = model(inputs)
+                # 计算损失
                 loss = criterion(outputs, labels)
 
+                # 累加当前批次的总损失
                 val_loss += loss.item() * inputs.size(0)
+                # 获取模型预测的类别（概率最高的类别索引）
                 _, preds = torch.max(outputs, 1)
+                # 累加当前批次的样本总数
                 val_total += labels.size(0)
+                # 计算当前批次预测正确的样本数，然后累加到总正确数中
                 val_correct += (preds == labels).sum().item()
-
+                # 更新进度条显示当前批次的损失和累计准确率
                 pbar.set_postfix(loss=loss.item(), acc=100.0 * val_correct / val_total)
 
+        # 计算整个验证集的平均损失
         epoch_val_loss = val_loss / len(val_loader.dataset)
+        # 计算整个验证集的准确率
         epoch_val_acc = 100.0 * val_correct / val_total
+        # 记录本轮训练的验证指标
         history["val_loss"].append(epoch_val_loss)
         history["val_acc"].append(epoch_val_acc)
+        # 打印本轮验证结果
         print(f"验证损失: {epoch_val_loss:.4f}, 准确率: {epoch_val_acc:.2f}%")
 
         # 更新学习率
@@ -146,7 +173,7 @@ def train_model(
 
 
 if __name__ == "__main__":
-    # 数据路径（根据实际情况修改）
+    # 数据路径
     train_csv = "../data/Thyroid_nodule_Dataset/label4train.csv"
     val_csv = "../data/Thyroid_nodule_Dataset/label4test.csv"
     train_dir = "../data/Thyroid_nodule_Dataset/train-image"

@@ -13,16 +13,23 @@ from models.model import create_model
 
 def plot_confusion_matrix(model, val_loader, device, class_names, save_path=None):
     """绘制混淆矩阵并计算详细评估指标"""
+    # 将模型设置为评估模式
     model.eval()
     all_labels = []
     all_preds = []
 
+    # 禁用梯度计算
     with torch.no_grad():
         for inputs, labels in val_loader:
+            # 将输入和标签移动到指定设备
             inputs, labels = inputs.to(device), labels.to(device)
+            # 前向传播
             outputs = model(inputs)
+            # 获取预测结果
             _, preds = torch.max(outputs, 1)
+            # 收集真实标签
             all_labels.extend(labels.cpu().numpy())
+            # 收集预测标签
             all_preds.extend(preds.cpu().numpy())
 
     # 计算混淆矩阵
@@ -30,6 +37,7 @@ def plot_confusion_matrix(model, val_loader, device, class_names, save_path=None
 
     # 绘制混淆矩阵
     plt.figure(figsize=(8, 6))
+    # 使用 seaborn 绘制热力图，设置颜色映射为 Blues
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar=False)
     plt.xlabel("预测标签")
     plt.ylabel("真实标签")
@@ -39,19 +47,28 @@ def plot_confusion_matrix(model, val_loader, device, class_names, save_path=None
     plt.tight_layout()
 
     if save_path is None:
-        model_name = "resnet50"  # 从模型或检查点获取实际模型名称
+        # 默认模型名称
+        model_name = "resnet50"
         save_path = f"../results/history/{model_name}_CM.png"
+    # 创建保存路径的目录
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    # 保存混淆矩阵
     plt.savefig(save_path)
     plt.show()
     print(f"混淆矩阵已保存至: {save_path}")
 
     # 计算详细评估指标
+    # 解包混淆矩阵元素
     tp, fp, fn, tn = cm.ravel()
+    # 计算准确率
     accuracy = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) > 0 else 0
-    sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0  # 真阳性率/敏感性
-    specificity = tn / (tn + fp) if (tn + fp) > 0 else 0  # 真阴性率/特异性
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0  # 精确率
+    # 计算敏感性（真阳性率）
+    sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
+    # 计算特异性（真阴性率）
+    specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
+    # 计算精确率
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    # 计算 F1 分数
     f1_score = 2 * precision * sensitivity / (precision + sensitivity) if (precision + sensitivity) > 0 else 0  # F1分数
 
     print(f"准确率: {accuracy:.4f}")
@@ -76,6 +93,7 @@ def export_predictions(model, data_loader, device, output_path):
     """导出预测结果到CSV文件"""
     model.eval()
     results = []
+    # 禁用梯度计算
     with torch.no_grad():
         for inputs, labels in data_loader:
             inputs, labels = inputs.to(device), labels.to(device)
